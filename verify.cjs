@@ -6,18 +6,20 @@ assert(!source.includes('\\"'));
 assert(!/<!doctype|<html|<body/i.test(source));
 const script=source.match(/<script>([\s\S]*?)<\/script>/)[1];
 new vm.Script(script);
-for(const width of [320,736]) for(const reduced of [false,true]) {
-  let queued, drawCalls=0;
+for(const width of [320,736]) for(const reduced of [false,true]) for(const initiallyHidden of [false,true]) {
+  let queued, drawCalls=0, hidden=initiallyHidden, onResize;
   const context=new Proxy({}, {get:(_,key)=>key==='createRadialGradient'?()=>({addColorStop(){}}):(...args)=>{
     for(const a of args) if(typeof a==='number')assert(Number.isFinite(a),'non-finite drawing coordinate');
+    if(key==='drawImage')assert(args[0].width>0 && args[0].height>0,'drawing a zero-size canvas');
     drawCalls++;
   },set:()=>true});
   const elements={};
-  function element(){return {style:{},handlers:{},attributes:{},isConnected:true,textContent:'',getContext:()=>context,getBoundingClientRect:()=>({width,height:width===320?320:450,left:0,top:0}),setAttribute(k,v){this.attributes[k]=v;},addEventListener(k,v){this.handlers[k]=v;},setPointerCapture(){}};}
+  function element(){return {style:{},handlers:{},attributes:{},isConnected:true,textContent:'',getContext:()=>context,getBoundingClientRect:()=>({width:hidden?0:width,height:hidden?0:width===320?320:450,left:0,top:0}),setAttribute(k,v){this.attributes[k]=v;},addEventListener(k,v){this.handlers[k]=v;},setPointerCapture(){}};}
   for(const id of ['ag-canvas','ag-color-probe','ag-split','ag-comet','ag-pause','ag-state'])elements['#'+id]=element();
   const root=element();root.querySelector=id=>{assert(elements[id]);return elements[id];};
-  const sandbox={document:{getElementById:id=>{assert.equal(id,'astra-gravity');return root;},createElement:()=>element(),hidden:false},getComputedStyle:()=>({color:'rgb(90,130,180)'}),matchMedia:()=>({matches:reduced,addEventListener(){}}),devicePixelRatio:2,ResizeObserver:class{observe(){}},requestAnimationFrame:fn=>{queued=fn;}};
+  const sandbox={document:{getElementById:id=>{assert.equal(id,'astra-gravity');return root;},createElement:()=>element(),hidden:false},getComputedStyle:()=>({color:'rgb(90,130,180)'}),matchMedia:()=>({matches:reduced,addEventListener(){}}),devicePixelRatio:2,ResizeObserver:class{constructor(fn){onResize=fn;}observe(){}},requestAnimationFrame:fn=>{queued=fn;}};
   vm.runInNewContext(script,sandbox);
+  hidden=false;onResize();
   const click=id=>elements[id].handlers.click();
   const tick=(n,offset=0)=>{for(let i=1;i<=n;i++)queued(offset+i*16.667);};
   assert(drawCalls>1000);
@@ -32,5 +34,5 @@ for(const width of [320,736]) for(const reduced of [false,true]) {
   elements['#ag-canvas'].handlers.pointerup();
   click('#ag-pause');assert.equal(elements['#ag-pause'].textContent,'Play');
   click('#ag-split');assert.equal(elements['#ag-split'].attributes['aria-pressed'],'false');
-  console.log(`PASS ${width}px, reduced motion ${reduced}: startup, simulation, split, comet, drag, pause; all coordinates finite`);
+  console.log(`PASS ${width}px, reduced motion ${reduced}, initially hidden ${initiallyHidden}: startup, simulation, split, comet, drag, pause; all coordinates finite`);
 }

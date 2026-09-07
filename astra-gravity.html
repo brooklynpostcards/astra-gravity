@@ -61,6 +61,7 @@
   for(let i=0;i<190;i++) stars.push({x:random(),y:random(),r:.3+random()*.8,a:.07+random()*.21});
   function resize() {
     const rect=canvas.getBoundingClientRect();
+    if(rect.width<=0 || rect.height<=0) return;
     width=rect.width; height=rect.height; scale=Math.min(width*.43,height*.67);
     dpr=Math.min(devicePixelRatio||1,2);
     canvas.width=trail.width=Math.round(width*dpr);
@@ -112,6 +113,7 @@
     ctx.fillStyle=g; ctx.fillRect(x-r,y-r,r*2,r*2); ctx.restore();
   }
   function paint(still=false) {
+    if(width<=0 || height<=0) return;
     ctx.globalAlpha=1; ctx.fillStyle=colors.bg; ctx.fillRect(0,0,width,height);
     ctx.fillStyle=colors.fg;
     for(const s of stars) {ctx.globalAlpha=s.a;ctx.beginPath();ctx.arc(s.x*width,s.y*height,s.r,0,Math.PI*2);ctx.fill();}
