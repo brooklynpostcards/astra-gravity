@@ -1,0 +1,11 @@
+# Local workspace routing and planning notes
+CONTEXT.md
+prd.md
+spec.md
+
+# Local tools and temporary files
+node_modules/
+.browser-profile/
+*.log
+.env
+.env.*

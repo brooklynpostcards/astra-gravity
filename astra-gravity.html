@@ -1,0 +1,173 @@
+<div id="astra-gravity">
+  <div class="viz-row ag-heading">
+    <span>A S T R A · Gravity playground</span>
+    <span class="text-small text-muted" id="ag-state" aria-live="polite">One star. 1,800 possible futures.</span>
+  </div>
+  <canvas id="ag-canvas" role="img" aria-label="An interactive disk of orbiting particles. Drag to move its central star. Use the buttons to create two stars or launch a comet.">Orbiting particles respond to moving stars and passing comets.</canvas>
+  <div class="viz-controls">
+    <button type="button" class="btn btn-primary" id="ag-split" aria-pressed="false">Split the star</button>
+    <button type="button" class="btn" id="ag-comet">Send a comet</button>
+    <button type="button" class="btn btn-ghost" id="ag-pause">Pause</button>
+  </div>
+  <span id="ag-color-probe" aria-hidden="true"></span>
+</div>
+<style>
+  #astra-gravity { width:100%; }
+  #astra-gravity .ag-heading { justify-content:space-between; gap:8px; margin-bottom:8px; }
+  #ag-canvas { display:block; width:100%; height:clamp(320px, 62vw, 450px); touch-action:none; cursor:grab; }
+  #ag-canvas:active { cursor:grabbing; }
+  #astra-gravity .viz-controls { margin-top:12px; }
+  #ag-color-probe { position:absolute; visibility:hidden; pointer-events:none; }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('astra-gravity');
+  const canvas = root.querySelector('#ag-canvas');
+  const ctx = canvas.getContext('2d');
+  const trail = document.createElement('canvas');
+  const ink = trail.getContext('2d');
+  const probe = root.querySelector('#ag-color-probe');
+  const splitButton = root.querySelector('#ag-split');
+  const cometButton = root.querySelector('#ag-comet');
+  const pauseButton = root.querySelector('#ag-pause');
+  const status = root.querySelector('#ag-state');
+  const motion = matchMedia('(prefers-reduced-motion: reduce)');
+  let running = !motion.matches, binary = false, separation = 0;
+  let time = 0, last = 0, width = 0, height = 0, scale = 1, dpr = 1;
+  let dragging = false, center = {x:0,y:0}, target = {x:0,y:0};
+  let colors, themeKey = '', seed = 72026, cometCount = 0;
+  const particles = [], comets = [], stars = [];
+  function random() { seed = (Math.imul(seed,1664525)+1013904223)>>>0; return seed/4294967296; }
+  function color(token) { probe.style.color = 'var('+token+')'; return getComputedStyle(probe).color; }
+  function refreshColors() {
+    colors = {bg:color('--background'),fg:color('--foreground'),dust:color('--viz-series-1'),comet:color('--viz-series-2')};
+    ink.clearRect(0,0,width,height);
+  }
+  function project(x,y,z=0) {
+    const a = x*.970-y*.243, b = x*.243+y*.970;
+    return [width/2+a*scale, height/2+b*scale*.64-z*scale];
+  }
+  function unproject(x,y) {
+    const a=(x-width/2)/scale, b=(y-height/2)/(scale*.64);
+    return {x:a*.970+b*.243,y:-a*.243+b*.970};
+  }
+  function makeParticle(i) {
+    const radius=.16+Math.pow(random(),.72)*.95;
+    const angle=random()*Math.PI*2;
+    const speed=Math.sqrt(.3/radius)*(0.95+random()*.10);
+    return {x:Math.cos(angle)*radius,y:Math.sin(angle)*radius,vx:-Math.sin(angle)*speed,vy:Math.cos(angle)*speed,z:(random()-.5)*.022,bright:random(),i};
+  }
+  for(let i=0;i<1800;i++) particles.push(makeParticle(i));
+  for(let i=0;i<190;i++) stars.push({x:random(),y:random(),r:.3+random()*.8,a:.07+random()*.21});
+  function resize() {
+    const rect=canvas.getBoundingClientRect();
+    width=rect.width; height=rect.height; scale=Math.min(width*.43,height*.67);
+    dpr=Math.min(devicePixelRatio||1,2);
+    canvas.width=trail.width=Math.round(width*dpr);
+    canvas.height=trail.height=Math.round(height*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0); ink.setTransform(dpr,0,0,dpr,0,0);
+    if(colors) paint(true);
+  }
+  function sources() {
+    const dx=Math.cos(time*.85)*separation,dy=Math.sin(time*.85)*separation;
+    return [{x:center.x+dx,y:center.y+dy,m:.3-separation*.45},
+            {x:center.x-dx,y:center.y-dy,m:separation*.45}];
+  }
+  function move(p,dt,masses) {
+    let ax=0,ay=0;
+    for(const s of masses) {
+      const dx=s.x-p.x,dy=s.y-p.y,r2=dx*dx+dy*dy+.0025;
+      const f=s.m/(r2*Math.sqrt(r2)); ax+=dx*f; ay+=dy*f;
+    }
+    p.vx+=ax*dt; p.vy+=ay*dt; p.x+=p.vx*dt; p.y+=p.vy*dt;
+  }
+  function step(dt,draw=true) {
+    time+=dt;
+    separation+=( (binary?.25:0)-separation )*Math.min(1,dt*2);
+    center.x+=(target.x-center.x)*Math.min(1,dt*3);
+    center.y+=(target.y-center.y)*Math.min(1,dt*3);
+    const masses=sources();
+    if(draw) { ink.globalCompositeOperation='destination-out'; ink.globalAlpha=1-Math.exp(-dt*2.3); ink.fillRect(0,0,width,height); ink.globalCompositeOperation='source-over'; }
+    ink.strokeStyle=colors.dust; ink.lineWidth=.75; ink.globalAlpha=.42;
+    ink.beginPath();
+    for(const p of particles) {
+      const old=project(p.x,p.y,p.z); move(p,dt,masses);
+      if(draw) { const next=project(p.x,p.y,p.z); ink.moveTo(old[0],old[1]); ink.lineTo(next[0],next[1]); }
+      if(Math.hypot(p.x,p.y)>6) Object.assign(p,makeParticle(p.i));
+    }
+    if(draw) ink.stroke();
+    ink.strokeStyle=colors.comet; ink.lineWidth=1.6; ink.globalAlpha=.95; ink.beginPath();
+    for(let i=comets.length-1;i>=0;i--) {
+      const p=comets[i],old=project(p.x,p.y); move(p,dt,masses); p.life-=dt;
+      if(draw) {const next=project(p.x,p.y); ink.moveTo(...old); ink.lineTo(...next);}
+      if(p.life<=0) comets.splice(i,1);
+    }
+    if(draw) ink.stroke();
+    ink.globalAlpha=1;
+  }
+  function glow(x,y,r,c,alpha) {
+    ctx.save(); ctx.globalAlpha=alpha;
+    const g=ctx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,c); g.addColorStop(1,'transparent');
+    ctx.fillStyle=g; ctx.fillRect(x-r,y-r,r*2,r*2); ctx.restore();
+  }
+  function paint(still=false) {
+    ctx.globalAlpha=1; ctx.fillStyle=colors.bg; ctx.fillRect(0,0,width,height);
+    ctx.fillStyle=colors.fg;
+    for(const s of stars) {ctx.globalAlpha=s.a;ctx.beginPath();ctx.arc(s.x*width,s.y*height,s.r,0,Math.PI*2);ctx.fill();}
+    ctx.globalAlpha=1;
+    const masses=sources();
+    for(const s of masses) if(s.m>.001) {const [x,y]=project(s.x,s.y);glow(x,y,scale*.68,colors.dust,.07);}
+    ctx.drawImage(trail,0,0,width,height);
+    ctx.fillStyle=colors.dust;
+    for(const p of particles) {const [x,y]=project(p.x,p.y,p.z);ctx.globalAlpha=.30+p.bright*.65;ctx.fillRect(x,y,p.bright>.96?1.7:.9,p.bright>.96?1.7:.9);}
+    ctx.globalAlpha=1;
+    for(const s of masses) if(s.m>.001) {
+      const [x,y]=project(s.x,s.y),r=2+Math.sqrt(s.m)*7;
+      glow(x,y,r*11,colors.dust,.35);glow(x,y,r*3,colors.fg,.22);
+      ctx.fillStyle=colors.fg;ctx.beginPath();ctx.arc(x,y,r*.52,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=colors.fg;ctx.globalAlpha=.25;ctx.lineWidth=.7;
+      ctx.beginPath();ctx.moveTo(x-r*4,y);ctx.lineTo(x+r*4,y);ctx.moveTo(x,y-r*2);ctx.lineTo(x,y+r*2);ctx.stroke();ctx.globalAlpha=1;
+    }
+    for(const p of comets) {const [x,y]=project(p.x,p.y);glow(x,y,15,colors.comet,.5);ctx.fillStyle=colors.comet;ctx.beginPath();ctx.arc(x,y,2.4,0,Math.PI*2);ctx.fill();}
+  }
+  function syncPause() {pauseButton.textContent=running?'Pause':'Play';}
+  splitButton.addEventListener('click',()=>{
+    binary=!binary;splitButton.setAttribute('aria-pressed',String(binary));splitButton.textContent=binary?'Reunite the stars':'Split the star';
+    status.textContent=binary?'Two stars. Watch the orbits unravel.':'One star. A new equilibrium.';
+    if(!running){separation=binary?.25:0;paint(true);}
+  });
+  cometButton.addEventListener('click',()=>{
+    cometCount++;const side=cometCount%2?1:-1;
+    comets.push({x:-1.25*side,y:.5*side,vx:.88*side,vy:-.12*side,life:18});
+    if(comets.length>16)comets.shift();
+    status.textContent='Comet '+cometCount+' launched.';paint(true);
+  });
+  pauseButton.addEventListener('click',()=>{running=!running;syncPause();status.textContent=running?'Time is moving.':'Time is paused.';});
+  function point(event) {
+    const rect=canvas.getBoundingClientRect();
+    const p=unproject(event.clientX-rect.left,event.clientY-rect.top);
+    target.x=Math.max(-.7,Math.min(.7,p.x));target.y=Math.max(-.7,Math.min(.7,p.y));
+    if(!running){center={...target};paint(true);}
+  }
+  canvas.addEventListener('pointerdown',event=>{dragging=true;canvas.setPointerCapture(event.pointerId);point(event);});
+  canvas.addEventListener('pointermove',event=>{if(dragging)point(event);});
+  canvas.addEventListener('pointerup',()=>{dragging=false;status.textContent='Gravity follows the star.';});
+  canvas.addEventListener('pointercancel',()=>{dragging=false;});
+  motion.addEventListener('change',()=>{if(motion.matches){running=false;syncPause();}});
+  refreshColors(); resize();
+  for(let i=0;i<65;i++)step(.008);
+  paint(true);syncPause();
+  new ResizeObserver(resize).observe(canvas);
+  let themeElapsed=0;
+  function frame(now) {
+    if(!root.isConnected)return;
+    const dt=last?Math.min((now-last)/1000,.04):.016;last=now;
+    themeElapsed+=dt;
+    if(themeElapsed>.6){themeElapsed=0;const key=color('--background')+color('--viz-series-1');if(key!==themeKey){themeKey=key;refreshColors();paint(true);}}
+    if(running&&!document.hidden){for(let i=0;i<3;i++)step(dt/3);paint();}
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
