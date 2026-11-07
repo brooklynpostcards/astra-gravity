@@ -39,8 +39,14 @@
   const particles = [], comets = [], stars = [];
   function random() { seed = (Math.imul(seed,1664525)+1013904223)>>>0; return seed/4294967296; }
   function color(token) { probe.style.color = 'var('+token+')'; return getComputedStyle(probe).color; }
+  function light(c) { const v=(c.match(/[\d.]+/g)||[0,0,0]).slice(0,3).map(Number); return v[0]*.299+v[1]*.587+v[2]*.114>128; }
   function refreshColors() {
+    /* On a white page the night palette is drawn and the canvas inverted: white ground, dark trails, black star (owner 2026-11-07). */
+    const onWhite = light(color('--background'));
+    if(onWhite) probe.style.colorScheme='dark';
     colors = {bg:color('--background'),fg:color('--foreground'),dust:color('--viz-series-1'),comet:color('--viz-series-2')};
+    if(onWhite) { probe.style.colorScheme=''; colors.bg='rgb(0, 0, 0)'; }
+    canvas.style.filter = onWhite ? 'invert(1) hue-rotate(180deg)' : '';
     ink.clearRect(0,0,width,height);
   }
   function project(x,y,z=0) {

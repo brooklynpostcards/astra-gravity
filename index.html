@@ -1076,8 +1076,14 @@ html&gt;body{padding:0}&lt;/style&gt;
   const particles = [], comets = [], stars = [];
   function random() { seed = (Math.imul(seed,1664525)+1013904223)&gt;&gt;&gt;0; return seed/4294967296; }
   function color(token) { probe.style.color = &#x27;var(&#x27;+token+&#x27;)&#x27;; return getComputedStyle(probe).color; }
+  function light(c) { const v=(c.match(/[\d.]+/g)||[0,0,0]).slice(0,3).map(Number); return v[0]*.299+v[1]*.587+v[2]*.114&gt;128; }
   function refreshColors() {
+    /* On a white page the night palette is drawn and the canvas inverted: white ground, dark trails, black star (owner 2026-11-07). */
+    const onWhite = light(color(&#x27;--background&#x27;));
+    if(onWhite) probe.style.colorScheme=&#x27;dark&#x27;;
     colors = {bg:color(&#x27;--background&#x27;),fg:color(&#x27;--foreground&#x27;),dust:color(&#x27;--viz-series-1&#x27;),comet:color(&#x27;--viz-series-2&#x27;)};
+    if(onWhite) { probe.style.colorScheme=&#x27;&#x27;; colors.bg=&#x27;rgb(0, 0, 0)&#x27;; }
+    canvas.style.filter = onWhite ? &#x27;invert(1) hue-rotate(180deg)&#x27; : &#x27;&#x27;;
     ink.clearRect(0,0,width,height);
   }
   function project(x,y,z=0) {
