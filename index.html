@@ -1068,6 +1068,8 @@ html&gt;body{padding:0}&lt;/style&gt;
   const cometButton = root.querySelector(&#x27;#ag-comet&#x27;);
   const pauseButton = root.querySelector(&#x27;#ag-pause&#x27;);
   const status = root.querySelector(&#x27;#ag-state&#x27;);
+  /* artifactdata&#x27;s [day]/[night] button reaches this page by message; system setting stays the default (owner 2026-11-07). */
+  if(typeof addEventListener===&#x27;function&#x27;) addEventListener(&#x27;message&#x27;, e =&gt; { const t=e.data&amp;&amp;e.data.adTheme; if(t!==&#x27;light&#x27;&amp;&amp;t!==&#x27;dark&#x27;)return; const r=document.documentElement; r.style.colorScheme=t; r.dataset.theme=t; });
   const motion = matchMedia(&#x27;(prefers-reduced-motion: reduce)&#x27;);
   let running = !motion.matches, binary = false, separation = 0;
   let time = 0, last = 0, width = 0, height = 0, scale = 1, dpr = 1;
@@ -1570,5 +1572,10 @@ html&gt;body{padding:0}&lt;/style&gt;
 &lt;/body&gt;
 &lt;/html&gt;
 "></iframe>
+<script>
+/* artifactdata sends {adTheme:'light'|'dark'}; this outer page follows it and passes it to the sandboxed playground (owner 2026-11-07). */
+(()=>{let cur=null;const f=document.querySelector('iframe');const put=()=>{if(!cur)return;document.documentElement.style.colorScheme=cur;try{f.contentWindow.postMessage({adTheme:cur},'*');}catch(e){}};
+addEventListener('message',e=>{if(e.source===f.contentWindow)return;const t=e.data&&e.data.adTheme;if(t!=='light'&&t!=='dark')return;cur=t;put();});f.addEventListener('load',put);})();
+</script>
 </body>
 </html>

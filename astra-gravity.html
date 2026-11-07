@@ -31,6 +31,8 @@
   const cometButton = root.querySelector('#ag-comet');
   const pauseButton = root.querySelector('#ag-pause');
   const status = root.querySelector('#ag-state');
+  /* artifactdata's [day]/[night] button reaches this page by message; system setting stays the default (owner 2026-11-07). */
+  if(typeof addEventListener==='function') addEventListener('message', e => { const t=e.data&&e.data.adTheme; if(t!=='light'&&t!=='dark')return; const r=document.documentElement; r.style.colorScheme=t; r.dataset.theme=t; });
   const motion = matchMedia('(prefers-reduced-motion: reduce)');
   let running = !motion.matches, binary = false, separation = 0;
   let time = 0, last = 0, width = 0, height = 0, scale = 1, dpr = 1;
